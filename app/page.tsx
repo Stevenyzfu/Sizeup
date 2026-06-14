@@ -2,14 +2,53 @@
 
 import { useState } from "react";
 
+type Figure = { value: string; methodology: string; confidence: string };
+type Report = {
+  marketName: string;
+  overallConfidence: string;
+  tam: Figure;
+  sam: Figure;
+  som: Figure;
+  cagr: Figure & { period: string };
+};
+
+function ConfidenceBadge({ level }: { level: string }) {
+  const colors: { [key: string]: string } = {
+    High: "bg-green-100 text-green-800",
+    Medium: "bg-amber-100 text-amber-800",
+    Low: "bg-red-100 text-red-800",
+  };
+  return (
+    <span className={`text-xs font-medium px-2 py-1 rounded-full ${colors[level] || "bg-gray-100 text-gray-700"}`}>
+      {level}
+    </span>
+  );
+}
+
+function FigureCard({ label, figure }: { label: string; figure: Figure }) {
+  return (
+    <div className="border border-gray-200 rounded-lg p-4">
+      <div className="flex items-center justify-between mb-1">
+        <span className="font-medium text-gray-900">
+          {label}: {figure.value}
+        </span>
+        <ConfidenceBadge level={figure.confidence} />
+      </div>
+      <p className="text-sm text-gray-600">{figure.methodology}</p>
+    </div>
+  );
+}
+
 export default function Home() {
   const [market, setMarket] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState("");
+  const [report, setReport] = useState<Report | null>(null);
+  const [error, setError] = useState("");
 
   async function generateReport() {
     setLoading(true);
-    setResult("");
+    setReport(null);
+    setError("");
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -17,21 +56,24 @@ export default function Home() {
         body: JSON.stringify({ market }),
       });
       const data = await response.json();
-      setResult(data.result);
+      if (data.report) {
+        setReport(data.report);
+      } else {
+        setError(data.error || "Something went wrong.");
+      }
     } catch {
-      setResult("Something went wrong. Please try again.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4 py-10 bg-white">
+    <main className="min-h-screen flex flex-col items-center px-4 py-10 bg-white">
       <div className="w-full max-w-xl">
         <h1 className="text-3xl font-semibold text-gray-900 mb-2">Sizeup</h1>
         <p className="text-gray-600 mb-8">
-          Investor-ready market sizing in minutes. Describe your market and get
-          an instant overview.
+          Investor-ready market sizing in minutes.
         </p>
 
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -53,12 +95,34 @@ export default function Home() {
           {loading ? "Generating…" : "Generate report"}
         </button>
 
-        {result && (
-          <div className="mt-8 border border-gray-200 rounded-lg p-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Market overview
-            </h2>
-            <p className="text-gray-700 whitespace-pre-line">{result}</p>
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+
+        {report && (
+          <div className="mt-8">
+            <div className="flex items-center gap-3 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">
+                {report.marketName}
+              </h2>
+              <ConfidenceBadge level={report.overallConfidence} />
+            </div>
+
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Market size</h3>
+            <div className="space-y-3 mb-6">
+              <FigureCard label="TAM" figure={report.tam} />
+              <FigureCard label="SAM" figure={report.sam} />
+              <FigureCard label="SOM" figure={report.som} />
+            </div>
+
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Growth rate</h3>
+            <div className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-medium text-gray-900">
+                  CAGR: {report.cagr.value} ({report.cagr.period})
+                </span>
+                <ConfidenceBadge level={report.cagr.confidence} />
+              </div>
+              <p className="text-sm text-gray-600">{report.cagr.methodology}</p>
+            </div>
           </div>
         )}
       </div>
